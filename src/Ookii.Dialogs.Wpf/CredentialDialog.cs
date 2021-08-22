@@ -221,7 +221,7 @@ namespace Ookii.Dialogs.Wpf
         /// The default value is an empty string ("").
         /// </value>
         [Browsable(false)]
-        public string UserName
+        public virtual string UserName
         {
             //get { return _credentials.UserName ?? string.Empty; }
             get => _userName ?? string.Empty;
@@ -236,7 +236,7 @@ namespace Ookii.Dialogs.Wpf
         }
 
         [Browsable(false)]
-        public string Domain
+        public virtual string Domain
         {
             get => _domain ?? string.Empty;
             set => _domain = value;
@@ -818,8 +818,7 @@ namespace Ookii.Dialogs.Wpf
         /// <param name="e">The <see cref="EventArgs"/> containing data for the event.</param>
         protected virtual void OnUserNameChanged(EventArgs e)
         {
-            if( UserNameChanged != null )
-                UserNameChanged(this, e);
+            this.UserNameChanged?.Invoke(this, e);
         }
 
         /// <summary>
@@ -897,16 +896,13 @@ namespace Ookii.Dialogs.Wpf
                 {
                 case NativeMethods.CredUIReturnCodes.NO_ERROR:
                     StringBuilder userName = new StringBuilder(NativeMethods.CREDUI_MAX_USERNAME_LENGTH);
-                    StringBuilder domain = new StringBuilder(NativeMethods.CREDUI_MAX_USERNAME_LENGTH);
                     StringBuilder password = new StringBuilder(NativeMethods.CREDUI_MAX_PASSWORD_LENGTH);
                     uint userNameSize = (uint)userName.Capacity;
                     uint passwordSize = (uint)password.Capacity;
-                        //uint domainSize = 0;
-                    uint domainSize = (uint)domain.Capacity;
-                    if( !NativeMethods.CredUnPackAuthenticationBuffer(0, outBuffer, outBufferSize, userName, ref userNameSize, domain, ref domainSize, password, ref passwordSize) )
+                    uint domainSize = (uint)userName.Capacity;
+                    if( !NativeMethods.CredUnPackAuthenticationBuffer(0, outBuffer, outBufferSize, userName, ref userNameSize, null, ref domainSize, password, ref passwordSize) )
                         throw new CredentialException(Marshal.GetLastWin32Error());
                     UserName = userName.ToString();
-                    Domain = domain.ToString();
                     //Password = password.ToString();
                     _securePass = new SecureString();
                     for (int i = 0; i < password.Length; i++)
