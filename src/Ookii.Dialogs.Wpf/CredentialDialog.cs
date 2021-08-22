@@ -18,6 +18,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
+using System.Security;
 using System.Security.Permissions;
 using System.Net;
 using System.Runtime.InteropServices;
@@ -52,6 +53,9 @@ namespace Ookii.Dialogs.Wpf
     {
         private string _confirmTarget;
         private NetworkCredential _credentials = new NetworkCredential();
+        private string _userName;
+        private string _domain;
+        private SecureString _securePass;
         private byte[] _additionalEntropy;
         private bool _isSaveChecked;
         private string _target;
@@ -91,6 +95,11 @@ namespace Ookii.Dialogs.Wpf
 
             InitializeComponent();
         }
+
+        #region EXTRA PROPERTIES
+        public Window Owner { get; set; }
+
+        #endregion
 
         /// <summary>
         /// Gets or sets whether to use the application instance credential cache.
@@ -155,11 +164,17 @@ namespace Ookii.Dialogs.Wpf
         [Browsable(false)]
         public string Password
         {
-            get { return _credentials.Password; }
+            //get { return _credentials.Password; }
+            get => null;
+            //private set
+            //{
+            //    _confirmTarget = null;
+            //    _credentials.Password = value;
+            //    OnPasswordChanged(EventArgs.Empty);
+            //}
             private set
             {
                 _confirmTarget = null;
-                _credentials.Password = value;
                 OnPasswordChanged(EventArgs.Empty);
             }
         }
@@ -194,7 +209,8 @@ namespace Ookii.Dialogs.Wpf
         [Browsable(false)]
         public NetworkCredential Credentials
         {
-            get { return _credentials; }
+            //get { return _credentials; }
+            get => null;
         }
 
         /// <summary>
@@ -207,13 +223,23 @@ namespace Ookii.Dialogs.Wpf
         [Browsable(false)]
         public string UserName
         {
-            get { return _credentials.UserName ?? string.Empty; }
-            private set
+            //get { return _credentials.UserName ?? string.Empty; }
+            get => _userName ?? string.Empty;
+            //private set
+            set
             {
                 _confirmTarget = null;
-                _credentials.UserName = value;
+                _userName = value;
+                //_credentials.UserName = value;
                 OnUserNameChanged(EventArgs.Empty);
             }
+        }
+
+        [Browsable(false)]
+        public string Domain
+        {
+            get => _domain ?? string.Empty;
+            set => _domain = value;
         }
 
         /// <summary>
@@ -419,7 +445,7 @@ namespace Ookii.Dialogs.Wpf
         [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
         public bool ShowDialog()
         {
-            return ShowDialog(null);
+            return ShowDialog(this.Owner);
         }
 
         /// <summary>
@@ -463,7 +489,7 @@ namespace Ookii.Dialogs.Wpf
             if( string.IsNullOrEmpty(_target) )
                 throw new InvalidOperationException(Properties.Resources.CredentialEmptyTargetError);
 
-            IntPtr ownerHandle = owner == default(IntPtr) ? NativeMethods.GetActiveWindow() : owner;
+            IntPtr ownerHandle = owner == default ? NativeMethods.GetActiveWindow() : owner;
 
             UserName = "";
             Password = "";
@@ -486,6 +512,7 @@ namespace Ookii.Dialogs.Wpf
                     _confirmTarget = Target;
                     return true;
                 }
+
                 storedCredentials = true;
             }
 
@@ -543,6 +570,14 @@ namespace Ookii.Dialogs.Wpf
             return ShowDialog(ownerHandle);
         }
 
+        public SecureString GetPassword()
+        {
+            var ss = _securePass.Copy();
+            _securePass.Dispose();
+            ss.MakeReadOnly();
+            return ss;
+        }
+
         /// <summary>
         /// Confirms the validity of the credential provided by the user.
         /// </summary>
@@ -573,7 +608,8 @@ namespace Ookii.Dialogs.Wpf
                     }
                 }
 
-                StoreCredential(Target, Credentials, AdditionalEntropy);
+                //StoreCredential(Target, Credentials, AdditionalEntropy);
+                StoreCredential(Target, UserName, _securePass, AdditionalEntropy);
             }
         }
 
@@ -608,20 +644,26 @@ namespace Ookii.Dialogs.Wpf
         ///   form "Company_ApplicationName_www.example.com".
         /// </para>
         /// </remarks>
-        public static void StoreCredential(string target, NetworkCredential credential, byte[] additionalEntropy = null)
+        //public static void StoreCredential(string target, NetworkCredential credential, byte[] additionalEntropy = null)
+        public static void StoreCredential(string target, string userName, SecureString password, byte[] additionalEntropy = null)
         {
             if( target == null )
                 throw new ArgumentNullException("target");
             if( target.Length == 0 )
                 throw new ArgumentException(Properties.Resources.CredentialEmptyTargetError, "target");
-            if( credential == null )
+            //if( credential == null )
+            if (userName == null || password == null)
                 throw new ArgumentNullException("credential");
 
             NativeMethods.CREDENTIAL c = new NativeMethods.CREDENTIAL();
-            c.UserName = credential.UserName;
+            //c.UserName = credential.UserName;
+            c.UserName = userName;
             c.TargetName = target;
             c.Persist = NativeMethods.CredPersist.Enterprise;
-            byte[] encryptedPassword = EncryptPassword(credential.Password, additionalEntropy);
+            byte[] encryptedPassword = HashNew(password, additionalEntropy);
+
+
+            //byte[] encryptedPassword = EncryptPassword(credential.Password, additionalEntropy);
             c.CredentialBlob = System.Runtime.InteropServices.Marshal.AllocHGlobal(encryptedPassword.Length);
             try
             {
@@ -683,6 +725,7 @@ namespace Ookii.Dialogs.Wpf
                 {
                     NativeMethods.CredFree(credential);
                 }
+
                 return cred;
             }
             else
@@ -722,6 +765,7 @@ namespace Ookii.Dialogs.Wpf
                     return cred;
                 }
             }
+
             return null;
         }
 
@@ -764,6 +808,7 @@ namespace Ookii.Dialogs.Wpf
                 if( error != (int)NativeMethods.CredUIReturnCodes.ERROR_NOT_FOUND )
                     throw new CredentialException(error);
             }
+
             return found;
         }
 
@@ -790,7 +835,7 @@ namespace Ookii.Dialogs.Wpf
         private bool PromptForCredentialsCredUI(IntPtr owner, bool storedCredentials)
         {
             NativeMethods.CREDUI_INFO info = CreateCredUIInfo(owner, true);
-            NativeMethods.CREDUI_FLAGS flags = NativeMethods.CREDUI_FLAGS.GENERIC_CREDENTIALS | NativeMethods.CREDUI_FLAGS.DO_NOT_PERSIST | NativeMethods.CREDUI_FLAGS.ALWAYS_SHOW_UI;
+            NativeMethods.CREDUI_FLAGS flags = NativeMethods.CREDUI_FLAGS.GENERIC_CREDENTIALS | NativeMethods.CREDUI_FLAGS.DO_NOT_PERSIST | NativeMethods.CREDUI_FLAGS.ALWAYS_SHOW_UI | NativeMethods.CREDUI_FLAGS.VALIDATE_USERNAME;
             if( ShowSaveCheckBox )
                 flags |= NativeMethods.CREDUI_FLAGS.SHOW_SAVE_CHECK_BOX;
 
@@ -813,6 +858,7 @@ namespace Ookii.Dialogs.Wpf
                         if( storedCredentials && !IsSaveChecked )
                             DeleteCredential(Target);
                     }
+
                     return true;
                 case NativeMethods.CredUIReturnCodes.ERROR_CANCELLED:
                     return false;
@@ -851,14 +897,23 @@ namespace Ookii.Dialogs.Wpf
                 {
                 case NativeMethods.CredUIReturnCodes.NO_ERROR:
                     StringBuilder userName = new StringBuilder(NativeMethods.CREDUI_MAX_USERNAME_LENGTH);
+                    StringBuilder domain = new StringBuilder(NativeMethods.CREDUI_MAX_USERNAME_LENGTH);
                     StringBuilder password = new StringBuilder(NativeMethods.CREDUI_MAX_PASSWORD_LENGTH);
                     uint userNameSize = (uint)userName.Capacity;
                     uint passwordSize = (uint)password.Capacity;
-                    uint domainSize = 0;
-                    if( !NativeMethods.CredUnPackAuthenticationBuffer(0, outBuffer, outBufferSize, userName, ref userNameSize, null, ref domainSize, password, ref passwordSize) )
+                        //uint domainSize = 0;
+                    uint domainSize = (uint)domain.Capacity;
+                    if( !NativeMethods.CredUnPackAuthenticationBuffer(0, outBuffer, outBufferSize, userName, ref userNameSize, domain, ref domainSize, password, ref passwordSize) )
                         throw new CredentialException(Marshal.GetLastWin32Error());
                     UserName = userName.ToString();
-                    Password = password.ToString();
+                    Domain = domain.ToString();
+                    //Password = password.ToString();
+                    _securePass = new SecureString();
+                    for (int i = 0; i < password.Length; i++)
+                    {
+                        _securePass.AppendChar(password[i]);
+                    }
+
                     if( ShowSaveCheckBox )
                     {
                         _confirmTarget = Target;
@@ -867,6 +922,7 @@ namespace Ookii.Dialogs.Wpf
                         if( storedCredentials && !IsSaveChecked )
                             DeleteCredential(Target);
                     }
+
                     return true;
                 case NativeMethods.CredUIReturnCodes.ERROR_CANCELLED:
                     return false;
@@ -915,6 +971,7 @@ namespace Ookii.Dialogs.Wpf
                 info.pszMessageText = Content;
                 info.pszCaptionText = MainInstruction;
             }
+
             return info;
         }
 
@@ -927,13 +984,42 @@ namespace Ookii.Dialogs.Wpf
                 Password = credential.Password;
                 return true;
             }
+
             return false;
         }
 
         private static byte[] EncryptPassword(string password, byte[] additionalEntropy)
         {
-            byte[] protectedData = System.Security.Cryptography.ProtectedData.Protect(System.Text.Encoding.UTF8.GetBytes(password), additionalEntropy, System.Security.Cryptography.DataProtectionScope.CurrentUser);
+            return EncryptPassword(Encoding.UTF8.GetBytes(password), additionalEntropy);
+        }
+        private static byte[] EncryptPassword(byte[] password, byte[] additionalEntropy)
+        {
+            byte[] protectedData = System.Security.Cryptography.ProtectedData.Protect(password, additionalEntropy, System.Security.Cryptography.DataProtectionScope.CurrentUser);
             return protectedData;
+        }
+
+        [DllImport("kernel32.dll")]
+        static extern void RtlZeroMemory(IntPtr dst, int length);
+
+        private unsafe static byte[] HashNew(SecureString secureString, byte[] additionalEntropy)
+        {
+            int maxUtf8BytesCount = Encoding.UTF8.GetMaxByteCount(secureString.Length);
+            IntPtr utf8Buffer = Marshal.AllocHGlobal(maxUtf8BytesCount);
+            IntPtr bstr = Marshal.SecureStringToBSTR(secureString);
+
+            // Here's the magic
+            char* utf16CharsPtr = (char*)bstr.ToPointer();
+            byte* utf8BytesPtr = (byte*)utf8Buffer.ToPointer();
+            int utf8BytesCount = Encoding.UTF8.GetBytes(utf16CharsPtr, secureString.Length, utf8BytesPtr, maxUtf8BytesCount);
+
+            Marshal.ZeroFreeBSTR(bstr);
+            byte[] utf8Bytes = new byte[utf8BytesCount];
+            GCHandle utf8BytesPin = GCHandle.Alloc(utf8Bytes, GCHandleType.Pinned);
+            Marshal.Copy(utf8Buffer, utf8Bytes, 0, utf8BytesCount);
+            RtlZeroMemory(utf8Buffer, utf8BytesCount);
+            Marshal.FreeHGlobal(utf8Buffer);
+
+            return EncryptPassword(utf8Bytes, additionalEntropy);
         }
 
         private static string DecryptPassword(byte[] encrypted, byte[] additionalEntropy)
@@ -960,6 +1046,7 @@ namespace Ookii.Dialogs.Wpf
                     return true;
                 }
             }
+
             return false;
         }
     }

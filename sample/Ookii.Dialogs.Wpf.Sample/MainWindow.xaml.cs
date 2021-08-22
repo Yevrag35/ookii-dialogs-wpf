@@ -152,7 +152,7 @@ namespace Ookii.Dialogs.Wpf.Sample
                 dialog.Target = "Ookii_DialogsWpfSample_www.example.com";
                 if( dialog.ShowDialog(this) )
                 {
-                    MessageBox.Show(this, string.Format("You entered the following information:\nUser name: {0}\nPassword: {1}", dialog.Credentials.UserName, dialog.Credentials.Password), "Credential dialog sample");
+                    MessageBox.Show(this, string.Format("You entered the following information:\nUser name: {0}\nDomain: {1}", dialog.UserName, dialog.Domain), "Credential dialog sample");
                     // Normally, you should verify if the credentials are correct before calling ConfirmCredentials.
                     // ConfirmCredentials will save the credentials if and only if the user checked the save checkbox.
                     dialog.ConfirmCredentials(true);

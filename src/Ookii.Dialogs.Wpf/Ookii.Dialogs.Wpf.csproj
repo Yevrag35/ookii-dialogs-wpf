@@ -5,9 +5,10 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>Ookii.Dialogs.Wpf</RootNamespace>
+	<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
     <AssemblyName>Ookii.Dialogs.Wpf</AssemblyName>
-    <AssemblyVersion>3.0.0.0</AssemblyVersion>
+    <AssemblyVersion>3.0.35.0</AssemblyVersion>
     <GenerateAssemblyVersionAttribute>true</GenerateAssemblyVersionAttribute>
     <GenerateAssemblyFileVersionAttribute>true</GenerateAssemblyFileVersionAttribute>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -24,7 +25,7 @@
     <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
 
     <NoWarn>$(NoWarn);NU5048</NoWarn>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <TreatSpecificWarningsAsErrors />
 
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
@@ -65,6 +66,15 @@
 
   <PropertyGroup>
     <DisableImplicitFrameworkReferences Condition=" '$(TargetFramework)' == 'net45' ">true</DisableImplicitFrameworkReferences>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net5.0-windows|AnyCPU'">
+    <WarningsAsErrors />
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net5.0-windows|AnyCPU'">
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
